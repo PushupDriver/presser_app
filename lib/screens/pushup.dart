@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:pushup_presser/blocs/blocs.dart';
 import 'package:pushup_presser/socket/socket_client.dart';
+import 'package:wakelock/wakelock.dart';
 
 class PushupPressPage extends StatefulWidget {
   const PushupPressPage({super.key});
@@ -35,8 +36,8 @@ class _PushupPressPageState extends State<PushupPressPage> {
     }
   }
 
-  final pushupPlayer = AudioPlayer();
-  final donePlayer = AudioPlayer();
+  late AudioPlayer pushupPlayer;
+  late AudioPlayer donePlayer;
 
   int get toPushUp => _toPushUp;
   late ConfettiController confettiController;
@@ -69,6 +70,8 @@ class _PushupPressPageState extends State<PushupPressPage> {
   @override
   void initState() {
     super.initState();
+    pushupPlayer = AudioPlayer();
+    donePlayer = AudioPlayer();
     socketClient = getIt.get<PushUpSocketClient>();
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
@@ -82,6 +85,7 @@ class _PushupPressPageState extends State<PushupPressPage> {
     pushupPlayer.setSource(AssetSource('sound_effects/pushup.opus'));
     donePlayer.setSource(AssetSource('sound_effects/done.opus'));
     getIt.get<PushUpSocketClient>().start();
+    Wakelock.enable();
   }
 
   @override
@@ -91,6 +95,7 @@ class _PushupPressPageState extends State<PushupPressPage> {
     confettiController.dispose();
     pushupPlayer.dispose();
     donePlayer.dispose();
+    Wakelock.disable();
     super.dispose();
   }
 
@@ -116,14 +121,14 @@ class _PushupPressPageState extends State<PushupPressPage> {
           },
         )
       ],
-      child: Scaffold(
-        body: GestureDetector(
-          onTap: () {
-            socketClient.pressed();
-            pushupPlayer.seek(Duration.zero);
-            pushupPlayer.resume();
-          },
-          child: Stack(
+      child: GestureDetector(
+        onTap: () {
+          socketClient.pressed();
+          pushupPlayer.seek(Duration.zero);
+          pushupPlayer.resume();
+        },
+        child: Scaffold(
+          body: Stack(
             children: [
               Center(
                 child: Text(
