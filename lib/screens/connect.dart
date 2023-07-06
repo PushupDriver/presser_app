@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
+import 'package:pushup_presser/blocs/blocs.dart';
 import 'package:pushup_presser/screens/pushup.dart';
 import 'package:pushup_presser/socket/socket_client.dart';
 
@@ -15,21 +17,30 @@ class _PushupConnectPageState extends State<PushupConnectPage> {
   bool connecting = false;
 
   @override
+  void initState() {
+    GetIt.instance.allowReassignment = true;
+    GetIt.instance.registerSingleton(Blocs());
+    super.initState();
+  }
+
+  @override
   void dispose() {
     controller.dispose();
     super.dispose();
   }
 
-  set _errorText(String? value) {
+  String? _errorText;
+
+  set errorText(String? value) {
     _errorText = value;
   }
 
-  String? get _errorText {
+  String? get errorText {
     final text = controller.value.text;
     if (text.isEmpty) {
-      return 'Can\'t be empty';
+      _errorText = 'Can\'t be empty';
     }
-    return null;
+    return _errorText;
   }
 
   @override
@@ -48,7 +59,7 @@ class _PushupConnectPageState extends State<PushupConnectPage> {
               controller: controller,
               decoration: InputDecoration(
                 labelText: "IP Addresses",
-                errorText: _errorText,
+                errorText: errorText,
               ),
             ),
             const SizedBox(
@@ -67,9 +78,13 @@ class _PushupConnectPageState extends State<PushupConnectPage> {
                   });
                   if (value == null) {
                     setState(() {
-                      _errorText = "Can not connect to this address";
+                      errorText = "Can not connect to this address";
                     });
                   } else {
+                    GetIt.instance.registerSingleton<PushUpSocketClient>(
+                      value,
+                    );
+                    value.startListen();
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (context) => const PushupPressPage()));
                   }
