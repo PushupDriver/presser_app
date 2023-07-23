@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:pushup_presser/blocs/blocs.dart';
-import 'package:pushup_presser/socket/socket_client.dart';
+import 'package:pushup_presser/ws/handle_ws.dart';
 import 'package:wakelock/wakelock.dart';
 
 class PushupPressPage extends StatefulWidget {
@@ -19,9 +19,11 @@ class PushupPressPage extends StatefulWidget {
 
 class _PushupPressPageState extends State<PushupPressPage> {
   GetIt getIt = GetIt.instance;
+  late Blocs blocs;
 
-  late PushUpSocketClient socketClient;
   int _toPushUp = 0;
+  late HandleWebSocket handleWebSocket;
+
   set toPushUp(int value) {
     _toPushUp = value;
     if (_toPushUp == 0) {
@@ -70,9 +72,9 @@ class _PushupPressPageState extends State<PushupPressPage> {
   @override
   void initState() {
     super.initState();
+    blocs = getIt.get<Blocs>();
     pushupPlayer = AudioPlayer();
     donePlayer = AudioPlayer();
-    socketClient = getIt.get<PushUpSocketClient>();
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
@@ -84,8 +86,9 @@ class _PushupPressPageState extends State<PushupPressPage> {
     donePlayer.setVolume(1);
     pushupPlayer.setSource(AssetSource('sound_effects/pushup.opus'));
     donePlayer.setSource(AssetSource('sound_effects/done.opus'));
-    getIt.get<PushUpSocketClient>().start();
     Wakelock.enable();
+    handleWebSocket = getIt.get<HandleWebSocket>();
+    toPushUp = blocs.pressedBloc.state;
   }
 
   @override
@@ -104,7 +107,7 @@ class _PushupPressPageState extends State<PushupPressPage> {
     return MultiBlocListener(
       listeners: [
         BlocListener(
-          bloc: getIt.get<Blocs>().connectBloc,
+          bloc: blocs.connectBloc,
           listener: (context, state) {
             if (state == ConnectionState.done &&
                 Navigator.of(context).canPop()) {
@@ -113,7 +116,7 @@ class _PushupPressPageState extends State<PushupPressPage> {
           },
         ),
         BlocListener<PressedBloc, int>(
-          bloc: getIt.get<Blocs>().pressedBloc,
+          bloc: blocs.pressedBloc,
           listener: (context, state) {
             setState(() {
               toPushUp = state;
@@ -122,10 +125,10 @@ class _PushupPressPageState extends State<PushupPressPage> {
         )
       ],
       child: GestureDetector(
-        onTap: () {
-          socketClient.pressed();
-          pushupPlayer.seek(Duration.zero);
-          pushupPlayer.resume();
+        onTap: () async {
+          handleWebSocket.send('{"event":"Pushup"}');
+          await pushupPlayer.seek(Duration.zero);
+          await pushupPlayer.resume();
         },
         child: Scaffold(
           body: Stack(

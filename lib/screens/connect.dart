@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:pushup_presser/blocs/blocs.dart';
 import 'package:pushup_presser/screens/pushup.dart';
-import 'package:pushup_presser/socket/socket_client.dart';
+import 'package:pushup_presser/screens/wait_for_pushup.dart';
+import 'package:pushup_presser/ws/handle_ws.dart';
 
 class PushupConnectPage extends StatefulWidget {
   const PushupConnectPage({super.key});
@@ -15,11 +17,16 @@ class _PushupConnectPageState extends State<PushupConnectPage> {
   TextEditingController controller = TextEditingController();
 
   bool connecting = false;
+  late Blocs blocs;
+  late HandleWebSocket handleWebSocket;
 
   @override
   void initState() {
+    blocs = Blocs();
+    handleWebSocket = HandleWebSocket();
     GetIt.instance.allowReassignment = true;
-    GetIt.instance.registerSingleton(Blocs());
+    GetIt.instance.registerSingleton(blocs);
+    GetIt.instance.registerSingleton(handleWebSocket);
     super.initState();
   }
 
@@ -72,22 +79,18 @@ class _PushupConnectPageState extends State<PushupConnectPage> {
                 setState(() {
                   connecting = true;
                 });
-                PushUpSocketClient.tryConnect(controller.text).then((value) {
+                handleWebSocket.startConnection(controller.text).then((value) {
                   setState(() {
                     connecting = false;
                   });
-                  if (value == null) {
-                    setState(() {
-                      errorText = "Can not connect to this address";
-                    });
-                  } else {
-                    GetIt.instance.registerSingleton<PushUpSocketClient>(
-                      value,
-                    );
-                    value.startListen();
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (context) => const PushupPressPage()));
-                  }
+
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (context) => const WaitForPushup()));
+                }).onError((error, stackTrace) {
+                  setState(() {
+                    connecting = false;
+                    errorText = "Can not connect to this address";
+                  });
                 });
               },
               color: Colors.blue,
