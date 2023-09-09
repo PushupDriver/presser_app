@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 import 'package:pushup_presser/blocs/blocs.dart';
 import 'package:pushup_presser/screens/pushup.dart';
 import 'package:pushup_presser/socket/socket_client.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PushupConnectPage extends StatefulWidget {
   const PushupConnectPage({super.key});
@@ -13,6 +14,7 @@ class PushupConnectPage extends StatefulWidget {
 
 class _PushupConnectPageState extends State<PushupConnectPage> {
   TextEditingController controller = TextEditingController();
+  SharedPreferences sharedPreferences = GetIt.instance.get<SharedPreferences>();
 
   bool connecting = false;
 
@@ -20,7 +22,40 @@ class _PushupConnectPageState extends State<PushupConnectPage> {
   void initState() {
     GetIt.instance.allowReassignment = true;
     GetIt.instance.registerSingleton(Blocs());
+    controller.text = sharedPreferences.getString("addr") ?? "";
+
+    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+      if (controller.text.isNotEmpty) {
+        handleOnPress();
+      }
+    });
+
     super.initState();
+  }
+
+  void handleOnPress() {
+    if (controller.text.isEmpty || connecting) return;
+    setState(() {
+      connecting = true;
+    });
+    PushUpSocketClient.tryConnect(controller.text).then((value) {
+      setState(() {
+        connecting = false;
+      });
+      if (value == null) {
+        setState(() {
+          errorText = "Can not connect to this address";
+        });
+      } else {
+        GetIt.instance.registerSingleton<PushUpSocketClient>(
+          value,
+        );
+        value.startListen();
+        sharedPreferences.setString("addr", controller.text);
+        Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => const PushupPressPage()));
+      }
+    });
   }
 
   @override
@@ -67,29 +102,7 @@ class _PushupConnectPageState extends State<PushupConnectPage> {
             ),
             MaterialButton(
               height: 50,
-              onPressed: () {
-                if (controller.text.isEmpty || connecting) return;
-                setState(() {
-                  connecting = true;
-                });
-                PushUpSocketClient.tryConnect(controller.text).then((value) {
-                  setState(() {
-                    connecting = false;
-                  });
-                  if (value == null) {
-                    setState(() {
-                      errorText = "Can not connect to this address";
-                    });
-                  } else {
-                    GetIt.instance.registerSingleton<PushUpSocketClient>(
-                      value,
-                    );
-                    value.startListen();
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (context) => const PushupPressPage()));
-                  }
-                });
-              },
+              onPressed: handleOnPress,
               color: Colors.blue,
               child: connecting
                   ? const CircularProgressIndicator()
